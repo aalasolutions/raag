@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "raag"
+version = "0.1.3"
+description = "RAAG: Relationship-Aware Augmented Generation. A minimal multi-tenant RAG library."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "AALA AI", email = "info@aala.ai"}
+]
+keywords = ["rag", "retrieval", "augmented", "generation", "multi-tenant", "vector", "search"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "sqlalchemy[asyncio]>=2.0.0",
+    "pydantic>=2.0.0",
+    "typing-extensions>=4.0.0",
+    "aiosqlite>=0.19.0",
+]
+
+[project.optional-dependencies]
+qdrant = ["qdrant-client>=1.7.0"]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/aala-ai/raag"
+Documentation = "https://github.com/aala-ai/raag"
+Repository = "https://github.com/aala-ai/raag"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
