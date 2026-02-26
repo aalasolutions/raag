@@ -38,9 +38,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/aala-ai/raag"
-Documentation = "https://github.com/aala-ai/raag"
-Repository = "https://github.com/aala-ai/raag"
+Homepage = "https://github.com/aalasolutions/raag"
+Documentation = "https://github.com/aalasolutions/raag"
+Repository = "https://github.com/aalasolutions/raag"
 
 [tool.setuptools.packages.find]
 where = ["src"]
