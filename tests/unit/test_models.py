@@ -3,6 +3,7 @@
 import pytest
 from datetime import datetime
 from uuid import uuid4
+from pydantic import ValidationError
 
 from raag.models import Document, Section, SearchResult
 from raag.config import RaagConfig
@@ -60,6 +61,24 @@ class TestDocument:
         assert data["title"] == "Test Document"
         assert "doc_id" in data
 
+    def test_document_rejects_missing_required_fields(self):
+        """Test Document requires tenant_id and title."""
+        with pytest.raises(ValidationError):
+            Document(title="No Tenant")
+        with pytest.raises(ValidationError):
+            Document(tenant_id="tenant_123")
+
+    def test_document_rejects_invalid_types(self):
+        """Test Document rejects values of the wrong type."""
+        with pytest.raises(ValidationError):
+            Document(tenant_id=123, title="Test Document")
+        with pytest.raises(ValidationError):
+            Document(tenant_id="tenant_123", title=None)
+        with pytest.raises(ValidationError):
+            Document(tenant_id="tenant_123", title="Test", metadata="not a dict")
+        with pytest.raises(ValidationError):
+            Document(tenant_id="tenant_123", title="Test", created_at="not a date")
+
 
 class TestSection:
     """Tests for Section model."""
@@ -104,6 +123,24 @@ class TestSection:
 
         assert section.metadata == metadata
 
+    def test_section_rejects_missing_required_fields(self):
+        """Test Section requires tenant_id, doc_id and text."""
+        with pytest.raises(ValidationError):
+            Section(doc_id="doc_456", text="Text")
+        with pytest.raises(ValidationError):
+            Section(tenant_id="tenant_123", text="Text")
+        with pytest.raises(ValidationError):
+            Section(tenant_id="tenant_123", doc_id="doc_456")
+
+    def test_section_rejects_invalid_types(self):
+        """Test Section rejects values of the wrong type."""
+        with pytest.raises(ValidationError):
+            Section(tenant_id="tenant_123", doc_id=456, text="Text")
+        with pytest.raises(ValidationError):
+            Section(tenant_id="tenant_123", doc_id="doc_456", text=None)
+        with pytest.raises(ValidationError):
+            Section(tenant_id="tenant_123", doc_id="doc_456", text="Text", metadata=[1, 2])
+
 
 class TestSearchResult:
     """Tests for SearchResult model."""
@@ -138,6 +175,42 @@ class TestSearchResult:
 
         assert data["section_id"] == "section_123"
         assert data["score"] == 0.95
+
+    def test_search_result_rejects_missing_required_fields(self):
+        """Test SearchResult requires all of its fields."""
+        with pytest.raises(ValidationError):
+            SearchResult(
+                section_id="section_123",
+                doc_id="doc_456",
+                text="Matched text content.",
+                metadata={}
+            )
+        with pytest.raises(ValidationError):
+            SearchResult(
+                section_id="section_123",
+                doc_id="doc_456",
+                text="Matched text content.",
+                score=0.95
+            )
+
+    def test_search_result_rejects_invalid_types(self):
+        """Test SearchResult rejects values of the wrong type."""
+        with pytest.raises(ValidationError):
+            SearchResult(
+                section_id="section_123",
+                doc_id="doc_456",
+                text="Matched text content.",
+                score="high",
+                metadata={}
+            )
+        with pytest.raises(ValidationError):
+            SearchResult(
+                section_id="section_123",
+                doc_id="doc_456",
+                text="Matched text content.",
+                score=0.95,
+                metadata=None
+            )
 
 
 class TestRaagConfig:

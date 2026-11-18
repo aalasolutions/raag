@@ -155,8 +155,8 @@ async def test_delete_removes_vectors():
     store = InMemoryVectorStore()
 
     await store.upsert([
-        VectorItem(id="doc1", vector=[1.0, 0.0], metadata={}, tenant_id="tenant_a"),
-        VectorItem(id="doc2", vector=[0.0, 1.0], metadata={}, tenant_id="tenant_a"),
+        VectorItem(id="doc1", vector=[1.0, 0.0, 0.0], metadata={}, tenant_id="tenant_a"),
+        VectorItem(id="doc2", vector=[0.0, 1.0, 0.0], metadata={}, tenant_id="tenant_a"),
         VectorItem(id="doc3", vector=[0.0, 0.0, 1.0], metadata={}, tenant_id="tenant_a"),
     ])
 
@@ -205,10 +205,10 @@ async def test_delete_multiple_ids():
     store = InMemoryVectorStore()
 
     await store.upsert([
-        VectorItem(id="doc1", vector=[1.0, 0.0], metadata={}, tenant_id="tenant_a"),
-        VectorItem(id="doc2", vector=[0.0, 1.0], metadata={}, tenant_id="tenant_a"),
+        VectorItem(id="doc1", vector=[1.0, 0.0, 0.0], metadata={}, tenant_id="tenant_a"),
+        VectorItem(id="doc2", vector=[0.0, 1.0, 0.0], metadata={}, tenant_id="tenant_a"),
         VectorItem(id="doc3", vector=[0.0, 0.0, 1.0], metadata={}, tenant_id="tenant_a"),
-        VectorItem(id="doc4", vector=[1.0, 1.0], metadata={}, tenant_id="tenant_a"),
+        VectorItem(id="doc4", vector=[1.0, 1.0, 0.0], metadata={}, tenant_id="tenant_a"),
     ])
 
     # Delete doc2 and doc4
@@ -288,3 +288,54 @@ async def test_search_results_sorted_by_score_descending():
     assert results[1].score == pytest.approx(1.0 / math.sqrt(2))
     assert results[2].id == "low"
     assert results[2].score == pytest.approx(0.0)
+
+
+@pytest.mark.asyncio
+async def test_search_dimension_mismatch_raises():
+    """Test that a query and stored vector of different lengths fail loudly."""
+    store = InMemoryVectorStore()
+
+    await store.upsert([
+        VectorItem(id="doc1", vector=[1.0, 0.0, 0.0], metadata={}, tenant_id="tenant_a"),
+    ])
+
+    with pytest.raises(ValueError, match="dimension mismatch"):
+        await store.search([1.0, 0.0], k=10, tenant_id="tenant_a")
+
+
+@pytest.mark.asyncio
+async def test_upsert_dimension_mismatch_raises_and_stores_nothing():
+    """Test that a vector of the wrong length is rejected before anything is stored."""
+    store = InMemoryVectorStore()
+
+    await store.upsert([
+        VectorItem(id="doc1", vector=[1.0, 0.0, 0.0], metadata={}, tenant_id="tenant_a"),
+    ])
+
+    with pytest.raises(ValueError, match="dimension mismatch"):
+        await store.upsert([
+            VectorItem(id="doc2", vector=[0.0, 1.0, 0.0], metadata={}, tenant_id="tenant_a"),
+            VectorItem(id="bad", vector=[1.0, 0.0], metadata={}, tenant_id="tenant_a"),
+        ])
+    with pytest.raises(ValueError, match="dimension mismatch"):
+        await store.upsert([
+            VectorItem(id="other", vector=[1.0, 0.0], metadata={}, tenant_id="tenant_b"),
+        ])
+
+    results = await store.search([1.0, 0.0, 0.0], k=10, tenant_id="tenant_a")
+    assert [r.id for r in results] == ["doc1"]
+    assert await store.search([1.0, 0.0, 0.0], k=10, tenant_id="tenant_b") == []
+
+
+@pytest.mark.asyncio
+async def test_upsert_mixed_lengths_in_first_batch_raises():
+    """Test that the first batch must agree on one dimension."""
+    store = InMemoryVectorStore()
+
+    with pytest.raises(ValueError, match="dimension mismatch"):
+        await store.upsert([
+            VectorItem(id="a", vector=[1.0, 0.0], metadata={}, tenant_id="tenant_a"),
+            VectorItem(id="b", vector=[1.0, 0.0, 0.0], metadata={}, tenant_id="tenant_a"),
+        ])
+    assert await store.search([1.0, 0.0], k=10, tenant_id="tenant_a") == []
+    await store.upsert([VectorItem(id="c", vector=[1.0, 0.0, 0.0], metadata={}, tenant_id="tenant_a")])
