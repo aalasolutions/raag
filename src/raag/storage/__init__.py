@@ -7,6 +7,7 @@ from raag.storage.crud import (
     save_document,
     save_sections,
     get_sections_by_doc,
+    list_documents,
     delete_document,
 )
 
@@ -20,5 +21,6 @@ __all__ = [
     "save_document",
     "save_sections",
     "get_sections_by_doc",
+    "list_documents",
     "delete_document",
 ]
