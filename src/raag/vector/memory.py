@@ -8,15 +8,32 @@ class InMemoryVectorStore:
     """In-memory vector store for testing and development.
 
     Stores vectors in nested dicts: {tenant_id: {id: (vector, metadata)}}
-    Provides cosine similarity search with tenant isolation.
+    Provides cosine similarity search with tenant isolation. The first
+    upsert fixes the vector dimension for the store.
     """
 
     def __init__(self) -> None:
         # Dict[tenant_id, Dict[id, (vector, metadata)]]
         self._store: dict[str, dict[str, tuple[list[float], dict]]] = {}
+        self._dimension: int | None = None
 
     async def upsert(self, items: list[VectorItem]) -> None:
-        """Insert or update vectors."""
+        """Insert or update vectors.
+
+        Raises:
+            ValueError: If any vector's length differs from the store's
+                dimension. Nothing is stored in that case.
+        """
+        dimension = self._dimension
+        for item in items:
+            if dimension is None:
+                dimension = len(item.vector)
+            elif len(item.vector) != dimension:
+                raise ValueError(
+                    f"Vector dimension mismatch: vector '{item.id}' has {len(item.vector)} "
+                    f"dimensions, store has {dimension}"
+                )
+        self._dimension = dimension
         for item in items:
             if item.tenant_id not in self._store:
                 self._store[item.tenant_id] = {}
@@ -49,6 +66,10 @@ class InMemoryVectorStore:
 
     def _cosine_similarity(self, a: list[float], b: list[float]) -> float:
         """Calculate cosine similarity between two vectors."""
+        if len(a) != len(b):
+            raise ValueError(
+                f"Vector dimension mismatch: query has {len(a)} dimensions, stored vector has {len(b)}"
+            )
         dot = sum(x * y for x, y in zip(a, b))
         norm_a = math.sqrt(sum(x * x for x in a))
         norm_b = math.sqrt(sum(x * x for x in b))

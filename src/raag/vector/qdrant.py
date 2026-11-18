@@ -1,12 +1,14 @@
 """Qdrant vector store adapter implementing VectorStore protocol."""
 
-from qdrant_client import QdrantClient
+from qdrant_client import AsyncQdrantClient, QdrantClient
 from qdrant_client.models import (
     Distance,
     VectorParams,
     PointStruct,
     Filter,
     FieldCondition,
+    FilterSelector,
+    HasIdCondition,
     MatchValue,
 )
 from raag.protocols import VectorItem, VectorSearchResult
@@ -16,7 +18,8 @@ class QdrantVectorStore:
     """Qdrant-backed vector store with tenant isolation.
 
     Uses payload filtering for tenant isolation rather than
-    separate collections per tenant.
+    separate collections per tenant. Store operations use
+    AsyncQdrantClient so they do not block the event loop.
     """
 
     def __init__(
@@ -25,23 +28,29 @@ class QdrantVectorStore:
         collection_name: str = "raag",
         vector_size: int = 1024,
     ):
-        self._client = QdrantClient(url=url)
         self._collection_name = collection_name
         self._vector_size = vector_size
-        self._ensure_collection()
+        self._ensure_collection(url)
+        self._client = AsyncQdrantClient(url=url)
 
-    def _ensure_collection(self):
-        collections = [c.name for c in self._client.get_collections().collections]
-        if self._collection_name not in collections:
-            self._client.create_collection(
-                collection_name=self._collection_name,
-                vectors_config=VectorParams(
-                    size=self._vector_size,
-                    distance=Distance.COSINE,
-                ),
-            )
+    def _ensure_collection(self, url: str):
+        client = QdrantClient(url=url)
+        try:
+            collections = [c.name for c in client.get_collections().collections]
+            if self._collection_name not in collections:
+                client.create_collection(
+                    collection_name=self._collection_name,
+                    vectors_config=VectorParams(
+                        size=self._vector_size,
+                        distance=Distance.COSINE,
+                    ),
+                )
+        finally:
+            client.close()
 
     async def upsert(self, items: list[VectorItem]) -> None:
+        if not items:
+            return
         points = [
             PointStruct(
                 id=item.id,
@@ -53,7 +62,7 @@ class QdrantVectorStore:
             )
             for item in items
         ]
-        self._client.upsert(
+        await self._client.upsert(
             collection_name=self._collection_name,
             points=points,
         )
@@ -64,7 +73,7 @@ class QdrantVectorStore:
         k: int,
         tenant_id: str,
     ) -> list[VectorSearchResult]:
-        results = self._client.query_points(
+        results = await self._client.query_points(
             collection_name=self._collection_name,
             query=vector,
             query_filter=Filter(
@@ -89,7 +98,17 @@ class QdrantVectorStore:
     async def delete(self, ids: list[str], tenant_id: str) -> None:
         if not ids:
             return
-        self._client.delete(
+        await self._client.delete(
             collection_name=self._collection_name,
-            points_selector=ids,
+            points_selector=FilterSelector(
+                filter=Filter(
+                    must=[
+                        HasIdCondition(has_id=ids),
+                        FieldCondition(
+                            key="tenant_id",
+                            match=MatchValue(value=tenant_id),
+                        ),
+                    ]
+                )
+            ),
         )
